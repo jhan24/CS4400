@@ -301,8 +301,7 @@ class UsersController extends FOSRestController implements AuthenticationRequire
         if ($request->request->has('Project_Name')) {
             $project_name = $request->request->get('Project_Name');
 
-            // run sql query, make sure current user is valid (also obtain the department the user is part of for requirement checking later)
-            // two birds with one stone
+            // run sql query, make sure current user is valid
             $result = $db->query("SELECT * FROM User INNER JOIN Major ON User.Major_Name = Major.Major_Name WHERE Username='" . $username . "' AND Password='" . $password . "'");
             if (!$result) {
                 $jsr = new JsonResponse(array('error' => $db->error));
@@ -315,8 +314,6 @@ class UsersController extends FOSRestController implements AuthenticationRequire
                 $jsr->setStatusCode(400);
                 return $jsr;
             }
-
-            $user = $data[0]; // store the user's information, as we need it for requirement checking later
 
             // run sql query, make sure project being applied to is valid
             $sql = "SELECT * FROM Project
@@ -355,23 +352,17 @@ class UsersController extends FOSRestController implements AuthenticationRequire
             $requirements_length = count($requirements);
             $requirements_met = 0;
             if ($requirements_length > 0) {
-                foreach ($requirements as $requirement) {
-                    if (strcmp($requirement['Requirement_Type'], 'Year') == 0) {
-                        if (strcmp($user['Year'], $requirement['Requirement']) == 0) {
-                            $requirements_met = 1;
-                            break;
-                        }
-                    } else if (strcmp($requirement['Requirement_Type'], 'Major') == 0) {
-                        if (strcmp($user['Major_Name'], $requirement['Requirement']) == 0) {
-                            $requirements_met = 1;
-                            break;
-                        }
-                    } else if (strcmp($requirement['Requirement_Type'], 'Department') == 0) {
-                        if (strcmp($user['Dept_Name'], $requirement['Requirement']) == 0) {
-                            $requirements_met = 1;
-                            break;
-                        }
-                    }
+                // run sql query to see if the user meets the requirements
+                // TODO: Verify this works.
+                $sql = "SELECT * FROM User, Major, Requirement
+                WHERE Requirement.Project_Name='" . $project_name . "'
+                AND User.Username='" . $username . "' AND User.Major_Name=Major.Major_Name
+                AND (Requirement.Requirement=User.Year OR Requirement.Requirement=User.Major_Name OR Requirement.Requirement=Major.Dept_Name)";
+
+                $result = $db->query($sql);
+                $data = $result->fetch_all(MYSQLI_ASSOC);
+                if ($result->num_rows > 0) { // at least one of the requirements were met, so the user is good to go
+                    $requirements_met = 1;
                 }
             } else {
                 $requirements_met = 1;
@@ -379,7 +370,17 @@ class UsersController extends FOSRestController implements AuthenticationRequire
 
             // requirements have been met
             if ($requirements_met == 1) {
-                // actually add the entry
+                // check if the user has already applied to the project in the past
+                $sql = "SELECT * FROM Application WHERE Username='" . $username . "' AND Project_Name='" . $project_name . "'";
+                $result = $db->query($sql);
+                $data = $result->fetch_all(MYSQLI_ASSOC);
+                if ($result->num_rows > 0) {
+                    $jsr = new JsonResponse(array('error' => 'User has already applied to this project before.', 'sql' => $sql));
+                    $jsr->setStatusCode(400);
+                    return $jsr;
+                }
+
+                // actually add the new application now
                 $status = 'pending';
                 $date = date("Y-m-d");
                 $sql = "INSERT INTO Application (Username, Project_Name, Date, Status)

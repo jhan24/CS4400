@@ -12,6 +12,9 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use FOS\RestBundle\Controller\Annotations\Delete;
 
+// TODO: Make this controller not store passwords in plain text in cookies
+// this might never be fixed for the scope of this project.
+
 /**
  * This controller provides for basic authentication for this program.
  * The authentication system here is simple and it works, but needs
@@ -32,6 +35,7 @@ class AuthenticationController extends FOSRestController
      */
     public function createAuthentication(Request $request) {
         $db = Database::getInstance();
+        // TODO: maybe check here if the user already is authenticated with cookies?
         if ($request->request->has('Username') && $request->request->has('Password')) {
             $username = $request->request->get('Username');
             $password = $request->request->get('Password');
