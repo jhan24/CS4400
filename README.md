@@ -1,3 +1,5 @@
+Rest services for the CS4400 Final Project. Written in PHP/Symfony. Contains a very simple cookie authentication system that is not very secure due to time constraints. 
+
 Symfony Standard Edition
 ========================
 
